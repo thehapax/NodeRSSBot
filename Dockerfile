@@ -1,9 +1,20 @@
-FROM node:13-alpine
+FROM node:13.8.0-alpine as ts-builder
 WORKDIR /app
 COPY . /app
-ENV NODE_PRODUTION true
+RUN npm install --ignore-scripts && npm run build
+
+FROM node:13.8.0-alpine as dep-builder
+WORKDIR /app
+COPY package.json clean-nm.sh /app/
 RUN apk add --no-cache --update build-base python2
-RUN npm install --production && find node_modules -type f | egrep "(.idea|.vscode|benchmark.js|.eslintrc.js|changelog|AUTHORS|AUTHORSon|license|LICENSE|.travis.yml|.eslintrc.json|.eslintrc.yml|Makefile|.npmignore|.DS_Store|.jshintrc|.eslintrc.BSD|.editorconfig|tsconfig.json|tsconfig.jsonon|.coveralls.yml|appveyor.yml|.gitattributes|.eslintignore|.eslintrc|.eslintignore.BSD|.babelrc)" | xargs rm -rf && \
-    find node_modules -type f | egrep "\.(md|mdon|markdown|log|ts|swp|jst|coffee|txt|BSD)$" | xargs rm -f &&\
-    find node_modules -type d | egrep "(test|docs|doc|examples|example|.githubs)" | xargs rm -rf
-ENTRYPOINT npm run start-withsnapshot
+RUN npm install --production && sh /app/clean-nm.sh
+
+FROM node:13.8.0-alpine as app
+WORKDIR /app
+ENV NODE_PRODUTION true
+COPY data /app/data
+COPY logs /app/logs
+COPY package.json /app/package.json
+COPY --from=ts-builder /app/dist /app/dist
+COPY --from=dep-builder /app/node_modules /app/node_modules
+CMD npm run start-withsnapshot
